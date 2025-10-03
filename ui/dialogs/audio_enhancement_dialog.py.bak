@@ -1,0 +1,335 @@
+import logging
+from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QScrollArea,
+                           QWidget, QGroupBox, QSlider, QSpinBox, QMessageBox)
+from PyQt5.QtCore import Qt
+
+from models.audio_profile import AudioProfile
+from services.service_registry import ServiceRegistry
+from services.audio_enhancement_service import AudioEnhancementService
+from ..components.dark_widgets import DarkFrame, DarkLabel, DarkButton
+
+logger = logging.getLogger(__name__)
+
+class DarkSlider(QSlider):
+    """Custom dark-themed slider."""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #555;
+                height: 8px;
+                background: #2a2a2a;
+                margin: 2px 0;
+                border-radius: 4px;
+            }
+            QSlider::handle:horizontal {
+                background: #4a9eff;
+                border: 1px solid #2a2a2a;
+                width: 18px;
+                margin: -5px 0;
+                border-radius: 9px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #5ba9ff;
+            }
+        """)
+        # Add value label
+        self.setTickPosition(QSlider.TicksBelow)
+        self.setTickInterval(10)
+
+class AudioEnhancementDialog(QDialog):
+    """Dialog for configuring audio enhancement settings."""
+    
+    def __init__(self, parent=None, audio_path: str = ""):
+        super().__init__(parent)
+        self.setWindowTitle("Audio Enhancement")
+        self.resize(400, 500)
+        self.setMinimumSize(350, 400)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.setModal(True)
+        
+        self.audio_path = audio_path
+        self.audio_service = ServiceRegistry().get_service(AudioEnhancementService)
+        
+        self._create_widgets()
+        
+    def _create_widgets(self):
+        """Create the dialog widgets."""
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        
+        # Voice Clarity Section
+        clarity_group = QGroupBox("Voice Clarity")
+        clarity_layout = QVBoxLayout(clarity_group)
+        
+        self.clarity_strength = DarkSlider(Qt.Horizontal)
+        self.clarity_strength.setRange(0, 100)
+        self.clarity_strength.setValue(50)
+        clarity_layout.addWidget(DarkLabel("Strength:"))
+        clarity_layout.addWidget(self.clarity_strength)
+        
+        layout.addWidget(clarity_group)
+        
+        # Music Ducking Section
+        ducking_group = QGroupBox("Music Ducking")
+        ducking_layout = QVBoxLayout(ducking_group)
+        
+        self.ducking_threshold = DarkSlider(Qt.Horizontal)
+        self.ducking_threshold.setRange(-60, 0)
+        self.ducking_threshold.setValue(-20)
+        ducking_layout.addWidget(DarkLabel("Threshold (dB):"))
+        ducking_layout.addWidget(self.ducking_threshold)
+        
+        self.ducking_amount = DarkSlider(Qt.Horizontal)
+        self.ducking_amount.setRange(0, 100)
+        self.ducking_amount.setValue(50)
+        ducking_layout.addWidget(DarkLabel("Amount (%):"))
+        ducking_layout.addWidget(self.ducking_amount)
+        
+        layout.addWidget(ducking_group)
+        
+        # Loudness Section
+        loudness_group = QGroupBox("Loudness")
+        loudness_layout = QVBoxLayout(loudness_group)
+        
+        self.target_loudness = DarkSlider(Qt.Horizontal)
+        self.target_loudness.setRange(-23, -14)
+        self.target_loudness.setValue(-16)
+        loudness_layout.addWidget(DarkLabel("Target LUFS:"))
+        loudness_layout.addWidget(self.target_loudness)
+        
+        layout.addWidget(loudness_group)
+        
+        # EQ Section
+        eq_group = QGroupBox("Equalizer")
+        eq_layout = QVBoxLayout(eq_group)
+        
+        # Add EQ sliders here when implemented
+        eq_layout.addWidget(DarkLabel("Coming soon..."))
+        
+        layout.addWidget(eq_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        apply_btn = DarkButton("Apply")
+        apply_btn.clicked.connect(self._apply_enhancements)
+        button_layout.addWidget(apply_btn)
+        
+        close_btn = DarkButton("Close")
+        close_btn.clicked.connect(self.close)
+        button_layout.addWidget(close_btn)
+        
+        layout.addLayout(button_layout)
+        
+    def _apply_enhancements(self):
+        """Apply the audio enhancements."""
+        try:
+            profile = AudioProfile(
+                clarity_strength=self.clarity_strength.value() / 100.0,
+                ducking_threshold=self.ducking_threshold.value(),
+                ducking_amount=self.ducking_amount.value() / 100.0,
+                target_loudness=self.target_loudness.value()
+            )
+            
+            job_id = self.audio_service.apply_enhancements(
+                self.audio_path,
+                profile
+            )
+            
+            QMessageBox.information(
+                self,
+                "Success",
+                "Audio enhancement started. You can check progress in the export queue."
+            )
+            self.accept()
+            
+        except Exception as e:
+            logger.error(f"Failed to apply audio enhancements: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to apply audio enhancements:\n{str(e)}"
+            )
+        
+        self.audio_path = audio_path
+        self.audio_service = ServiceRegistry().get_service(AudioEnhancementService)
+        
+        self._create_widgets()
+        
+        # Make dialog modal
+        self.transient(parent)
+        self.grab_set()
+        
+    def _create_widgets(self):
+        """Create the dialog widgets."""
+        main_frame = DarkFrame(self)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Voice Clarity Section
+        clarity_frame = self._create_section(main_frame, "Voice Clarity")
+        
+        DarkLabel(
+            clarity_frame,
+            text="Enhancement Strength:"
+        ).pack(anchor=tk.W)
+        
+        self.clarity_strength = DarkScale(
+            clarity_frame,
+            from_=0,
+            to=100,
+            orient=tk.HORIZONTAL
+        )
+        self.clarity_strength.set(50)
+        self.clarity_strength.pack(fill=tk.X, padx=5)
+        
+        # Music Ducking Section
+        ducking_frame = self._create_section(main_frame, "Music Ducking")
+        
+        DarkLabel(
+            ducking_frame,
+            text="Voice Detection Threshold:"
+        ).pack(anchor=tk.W)
+        
+        self.ducking_threshold = DarkScale(
+            ducking_frame,
+            from_=-60,
+            to=-20,
+            orient=tk.HORIZONTAL
+        )
+        self.ducking_threshold.set(-40)
+        self.ducking_threshold.pack(fill=tk.X, padx=5)
+        
+        DarkLabel(
+            ducking_frame,
+            text="Ducking Amount (dB):"
+        ).pack(anchor=tk.W)
+        
+        self.ducking_amount = DarkScale(
+            ducking_frame,
+            from_=-20,
+            to=0,
+            orient=tk.HORIZONTAL
+        )
+        self.ducking_amount.set(-10)
+        self.ducking_amount.pack(fill=tk.X, padx=5)
+        
+        # Style Matching Section
+        style_frame = self._create_section(main_frame, "Audio Style")
+        
+        DarkLabel(
+            style_frame,
+            text="Target Loudness (LUFS):"
+        ).pack(anchor=tk.W)
+        
+        self.target_loudness = DarkScale(
+            style_frame,
+            from_=-23,
+            to=-14,
+            orient=tk.HORIZONTAL
+        )
+        self.target_loudness.set(-18)
+        self.target_loudness.pack(fill=tk.X, padx=5)
+        
+        # EQ Settings
+        eq_frame = DarkFrame(style_frame)
+        eq_frame.pack(fill=tk.X, pady=5)
+        
+        DarkLabel(
+            eq_frame,
+            text="EQ Settings:"
+        ).pack(anchor=tk.W)
+        
+        # Create sliders for key frequencies
+        self.eq_sliders = {}
+        frequencies = [125, 250, 500, 1000, 2000, 4000, 8000]
+        
+        for freq in frequencies:
+            label = f"{freq}Hz" if freq < 1000 else f"{freq//1000}kHz"
+            DarkLabel(
+                eq_frame,
+                text=label,
+                font=("TkDefaultFont", 8)
+            ).pack(anchor=tk.W)
+            
+            slider = DarkScale(
+                eq_frame,
+                from_=-12,
+                to=12,
+                orient=tk.HORIZONTAL
+            )
+            slider.set(0)
+            slider.pack(fill=tk.X, padx=5)
+            self.eq_sliders[freq] = slider
+        
+        # Bottom Buttons
+        button_frame = DarkFrame(self)
+        button_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        DarkButton(
+            button_frame,
+            text="Apply",
+            command=self._apply_settings
+        ).pack(side=tk.RIGHT, padx=5)
+        
+        DarkButton(
+            button_frame,
+            text="Cancel",
+            command=self.destroy
+        ).pack(side=tk.RIGHT, padx=5)
+    
+    def _create_section(self, parent, title: str) -> DarkFrame:
+        """Create a titled section in the dialog."""
+        frame = DarkFrame(parent)
+        frame.pack(fill=tk.X, pady=5)
+        
+        DarkLabel(
+            frame,
+            text=title,
+            font=("TkDefaultFont", 10, "bold")
+        ).pack(anchor=tk.W, pady=(0, 5))
+        
+        return frame
+    
+    def _apply_settings(self):
+        """Apply the audio enhancement settings."""
+        # Create audio profile from settings
+        eq_settings = {
+            str(freq): self.eq_sliders[freq].get()
+            for freq in self.eq_sliders
+        }
+        
+        profile = AudioProfile(
+            loudness=float(self.target_loudness.get()),
+            dynamic_range=1.0,  # Default value
+            eq_settings=eq_settings,
+            clarity_boost=float(self.clarity_strength.get()) / 100.0,
+            music_ducking_threshold=float(self.ducking_threshold.get()),
+            music_ducking_amount=float(self.ducking_amount.get())
+        )
+        
+        # Queue audio processing jobs
+        if profile.clarity_boost > 0:
+            self.audio_service.enhance_voice_clarity(
+                self.audio_path,
+                strength=profile.clarity_boost
+            )
+            
+        if profile.music_ducking_threshold is not None:
+            self.audio_service.apply_music_ducking(
+                self.audio_path,
+                threshold=profile.music_ducking_threshold,
+                reduction=profile.music_ducking_amount
+            )
+        
+        # Close dialog
+        self.destroy()
+        
+        # Show confirmation
+        tk.messagebox.showinfo(
+            "Processing Queued",
+            "Audio enhancement tasks have been queued.\n\n"
+            "You can monitor progress in the Export Queue window."
+        )

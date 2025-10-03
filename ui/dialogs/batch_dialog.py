@@ -3,15 +3,18 @@ Batch processing dialog
 """
 from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                             QPushButton, QListWidget, QFileDialog, QMessageBox,
-                            QProgressBar, QListWidgetItem)
+                            QProgressBar, QListWidgetItem, QComboBox, QGroupBox)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from core.batch_processor import BatchProcessor, BatchJob
 from core.segment import Segment
 from core.video_engine import ProcessingOptions
+from models.export_profile import ExportProfile
+from services.export_profile_manager import ExportProfileManager
 from ui.themes.dark_theme import PortfolioTheme
+from ui.dialogs.export_profile_dialog import ExportProfileDialog
 
 
 class BatchProcessingThread(QThread):
@@ -20,14 +23,16 @@ class BatchProcessingThread(QThread):
     progress = pyqtSignal(int, int, str)
     finished = pyqtSignal(list)
     
-    def __init__(self, processor, options):
+    def __init__(self, processor, options, export_profile: Optional[ExportProfile] = None):
         super().__init__()
         self.processor = processor
         self.options = options
+        self.export_profile = export_profile
     
     def run(self):
         results = self.processor.process_all(
             self.options,
+            export_profile=self.export_profile,
             progress_callback=self.progress.emit
         )
         self.finished.emit(results)
@@ -41,10 +46,13 @@ class BatchDialog(QDialog):
         self.segments = segments
         self.processor = BatchProcessor()
         self.processing_thread = None
+        self.profile_manager = ExportProfileManager()
+        self.current_profile = None
         
         self.setWindowTitle("Batch Processing")
         self.setMinimumSize(600, 500)
         self._setup_ui()
+        self._load_profiles()
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -100,6 +108,50 @@ class BatchDialog(QDialog):
         btn_layout.addStretch()
         
         layout.addLayout(btn_layout)
+        
+        # Export Profile Group
+        profile_group = QGroupBox("Export Profile")
+        profile_group.setStyleSheet(f"""
+            QGroupBox {{
+                color: {PortfolioTheme.WHITE};
+                border: 1px solid {PortfolioTheme.BORDER};
+                border-radius: 4px;
+                margin-top: 1em;
+                padding-top: 0.5em;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 3px 0 3px;
+            }}
+        """)
+        profile_layout = QHBoxLayout()
+        
+        self.profile_combo = QComboBox()
+        self.profile_combo.setStyleSheet(f"""
+            QComboBox {{
+                background: {PortfolioTheme.SECONDARY};
+                color: {PortfolioTheme.WHITE};
+                border: 1px solid {PortfolioTheme.BORDER};
+                border-radius: 4px;
+                padding: 5px;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox::down-arrow {{
+                image: url(down_arrow.png);
+            }}
+        """)
+        self.profile_combo.currentIndexChanged.connect(self._on_profile_selected)
+        profile_layout.addWidget(self.profile_combo)
+        
+        manage_profile_btn = QPushButton("Manage Profiles...")
+        manage_profile_btn.clicked.connect(self._manage_profiles)
+        profile_layout.addWidget(manage_profile_btn)
+        
+        profile_group.setLayout(profile_layout)
+        layout.addWidget(profile_group)
         
         # Progress
         self.progress_bar = QProgressBar()
@@ -170,6 +222,52 @@ class BatchDialog(QDialog):
             }}
         """)
     
+    def _load_profiles(self):
+        """Load available profiles into combo box."""
+        self.profile_combo.clear()
+        self.profile_combo.addItem("Default (No Profile)")
+        
+        # Add saved profiles
+        for name in self.profile_manager.list_profiles():
+            self.profile_combo.addItem(name)
+        
+        # Add presets
+        self.profile_combo.insertSeparator(self.profile_combo.count())
+        self.profile_combo.addItem("YouTube HD (Preset)")
+        self.profile_combo.addItem("Vimeo HD (Preset)")
+        self.profile_combo.addItem("Device Playback (Preset)")
+        self.profile_combo.addItem("Archive Quality (Preset)")
+    
+    def _on_profile_selected(self, index):
+        """Handle profile selection change."""
+        name = self.profile_combo.currentText()
+        
+        if name == "Default (No Profile)":
+            self.current_profile = None
+            return
+        
+        if " (Preset)" in name:
+            # Create from preset
+            preset_name = name.replace(" (Preset)", "").lower()
+            try:
+                self.current_profile = ExportProfile.create_preset(preset_name)
+            except ValueError:
+                self.current_profile = None
+                return
+        else:
+            # Load existing profile
+            try:
+                self.current_profile = self.profile_manager.get_profile(name)
+            except KeyError:
+                self.current_profile = None
+                return
+    
+    def _manage_profiles(self):
+        """Open export profile manager dialog."""
+        dialog = ExportProfileDialog(self.profile_manager, self)
+        if dialog.exec_():
+            self._load_profiles()
+    
     def _add_videos(self):
         files, _ = QFileDialog.getOpenFileNames(
             self,
@@ -224,7 +322,11 @@ class BatchDialog(QDialog):
             self.processor.add_job(video_path, self.segments, output_dir)
         
         # Start processing
-        self.processing_thread = BatchProcessingThread(self.processor, options)
+        self.processing_thread = BatchProcessingThread(
+            self.processor, 
+            options,
+            export_profile=self.current_profile
+        )
         self.processing_thread.progress.connect(self._on_progress)
         self.processing_thread.finished.connect(self._on_finished)
         

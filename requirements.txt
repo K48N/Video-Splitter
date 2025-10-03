@@ -7,5 +7,26 @@ librosa>=0.10.0
 scipy>=1.11.0
 matplotlib>=3.7.0
 
-# Optional
-QtAwesome>=1.2.0
+# AI and Audio Processing
+openai-whisper>=1.1.0  # For speech-to-text
+soundfile>=0.12.0      # For audio file handling
+librosa>=0.10.0        # For audio analysis
+torch>=2.0.0           # Required for Whisper
+torchaudio>=2.0.0      # Required for audio processing
+transformers>=4.30.0   # For scene classification and summarization
+
+# UI Components
+QtAwesome>=1.2.0       # For icons
+darkdetect>=0.7.1      # For theme detection
+
+# Utilities
+ffmpeg-python>=0.2.0   # For media processing
+python-magic>=0.4.27   # For file type detection
+cached-property>=1.5.2 # For caching
+
+# Testing
+pytest>=7.4.0          # Testing framework
+pytest-qt>=4.2.0       # Qt application testing
+pytest-cov>=4.1.0      # Test coverage reporting
+pytest-mock>=3.11.1    # Mocking support
+pytest-asyncio>=0.21.1 # Async testing support

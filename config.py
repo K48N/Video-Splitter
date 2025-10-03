@@ -1,12 +1,135 @@
 """
-Centralized configuration management
-All app settings, constants, and configurations in one place
+Global configuration for the Video Splitter application.
+Contains settings for AI services, audio processing, and caching.
 """
+
 import os
 from pathlib import Path
 from typing import Dict, Any
 import json
+import logging
 
+logger = logging.getLogger(__name__)
+
+# Default Paths
+APP_DATA = os.getenv("APPDATA") or os.path.expanduser("~/.local/share")
+APP_CONFIG_DIR = os.path.join(APP_DATA, "VideoSplitter")
+CACHE_DIR = os.path.join(APP_CONFIG_DIR, "cache")
+CONFIG_FILE = os.path.join(APP_CONFIG_DIR, "config.json")
+
+# Default Configuration
+DEFAULT_CONFIG = {
+    # AI Service Settings
+    "ai": {
+        "whisper_model": "base",  # Options: tiny, base, small, medium, large
+        "enable_scene_detection": True,
+        "enable_speaker_diarization": True,
+        "auto_summarize_length": 60,  # seconds
+        "confidence_threshold": 0.7
+    },
+    
+    # Audio Enhancement Settings
+    "audio": {
+        "voice_clarity": {
+            "default_strength": 0.5,
+            "enable_noise_reduction": True
+        },
+        "music_ducking": {
+            "threshold": -20,  # dB
+            "reduction": -10   # dB
+        },
+        "style_matching": {
+            "target_loudness": -18,  # LUFS
+            "enable_eq_matching": True
+        }
+    },
+    
+    # Cache Settings
+    "cache": {
+        "max_size_gb": 10,
+        "max_age_days": 30,
+        "generate_on_import": True,
+        "proxy_resolution": "720p",
+        "thumbnail_interval": 1.0  # seconds
+    },
+    
+    # Export Settings
+    "export": {
+        "max_concurrent_jobs": 2,
+        "default_format": "mp4",
+        "temp_directory": None  # Will be set during initialization
+    }
+}
+
+class Config:
+    """Global configuration manager."""
+    
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialize()
+        return cls._instance
+    
+    def _initialize(self):
+        """Initialize the configuration system."""
+        self._config = DEFAULT_CONFIG.copy()
+        
+        # Create config directory if it doesn't exist
+        os.makedirs(APP_CONFIG_DIR, exist_ok=True)
+        
+        # Load existing config if available
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r') as f:
+                    stored_config = json.load(f)
+                    self._update_recursive(self._config, stored_config)
+            except Exception as e:
+                logger.error(f"Failed to load config: {e}")
+        
+        # Set dynamic defaults
+        if not self._config["export"]["temp_directory"]:
+            self._config["export"]["temp_directory"] = os.path.join(APP_CONFIG_DIR, "temp")
+        
+        # Create required directories
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        os.makedirs(self._config["export"]["temp_directory"], exist_ok=True)
+        
+        # Save config to ensure all defaults are written
+        self.save()
+    
+    def _update_recursive(self, base: Dict[str, Any], update: Dict[str, Any]):
+        """Recursively update configuration while preserving structure."""
+        for key, value in update.items():
+            if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+                self._update_recursive(base[key], value)
+            else:
+                base[key] = value
+    
+    def get(self, section: str, key: str = None):
+        """Get a configuration value."""
+        if key is None:
+            return self._config.get(section, {})
+        return self._config.get(section, {}).get(key)
+    
+    def set(self, section: str, key: str, value: Any):
+        """Set a configuration value."""
+        if section not in self._config:
+            self._config[section] = {}
+        self._config[section][key] = value
+        self.save()
+    
+    def save(self):
+        """Save the current configuration to disk."""
+        try:
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(self._config, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save config: {e}")
+
+# Global configuration instance
+config = Config()
 
 class Config:
     """Application configuration manager"""

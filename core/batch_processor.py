@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from core.segment import Segment
 from core.video_engine import VideoEngine, ProcessingOptions, ProcessingResult
+from models.export_profile import ExportProfile
 
 
 @dataclass
@@ -46,6 +47,7 @@ class BatchProcessor:
     def process_all(
         self,
         options: ProcessingOptions,
+        export_profile: Optional[ExportProfile] = None,
         progress_callback: Optional[Callable[[int, int, str], None]] = None
     ) -> List[BatchJob]:
         """
@@ -53,6 +55,7 @@ class BatchProcessor:
         
         Args:
             options: Processing options to use for all jobs
+            export_profile: Optional export profile to apply
             progress_callback: Callback(current_job, total_jobs, message)
         
         Returns:
@@ -79,11 +82,42 @@ class BatchProcessor:
                     self.engine.video_info['duration']
                 )
                 
+                # Apply export profile to options if provided
+                if export_profile:
+                    # Create a copy of options to not modify the original
+                    job_options = ProcessingOptions(
+                        output_format=export_profile.container,
+                        video_codec=export_profile.video_codec.codec,
+                        video_bitrate=export_profile.video_codec.bitrate,
+                        video_preset=export_profile.video_codec.preset,
+                        video_crf=export_profile.video_codec.crf,
+                        video_pixel_format=export_profile.video_codec.pixel_format,
+                        width=export_profile.width,
+                        height=export_profile.height,
+                        fps=export_profile.fps,
+                        maintain_aspect_ratio=export_profile.maintain_aspect_ratio,
+                        audio_codec=export_profile.audio_codec.codec,
+                        audio_bitrate=export_profile.audio_codec.bitrate,
+                        audio_sample_rate=export_profile.audio_codec.sample_rate,
+                        audio_channels=export_profile.audio_codec.channels,
+                        normalize_audio=export_profile.normalize_audio,
+                        metadata=export_profile.metadata.copy(),
+                        extra_args=export_profile.extra_ffmpeg_args.split() if export_profile.extra_ffmpeg_args else []
+                    )
+                    
+                    # If max_rate and buf_size are set, add them to extra_args
+                    if export_profile.video_codec.max_rate:
+                        job_options.extra_args.extend(["-maxrate", export_profile.video_codec.max_rate])
+                    if export_profile.video_codec.buf_size:
+                        job_options.extra_args.extend(["-bufsize", export_profile.video_codec.buf_size])
+                else:
+                    job_options = options
+                
                 # Process
                 results = self.engine.process_segments(
                     adjusted_segments,
                     job.output_dir,
-                    options
+                    job_options
                 )
                 
                 job.results = results

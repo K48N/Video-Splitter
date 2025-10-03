@@ -2,6 +2,67 @@
 Custom UI components with portfolio-inspired dark theme
 Production-ready widgets with consistent styling
 """
+from PyQt5.QtWidgets import (QFrame, QLabel, QPushButton, QCheckBox,
+                           QVBoxLayout, QHBoxLayout, QWidget, QFileDialog)
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont, QPainter, QColor
+from ui.themes.dark_theme import PortfolioTheme
+
+class DarkFrame(QFrame):
+    """Dark themed frame widget"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background-color: {PortfolioTheme.BACKGROUND_COLOR}")
+        
+class DarkLabel(QLabel):
+    """Dark themed label widget"""
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet(f"color: {PortfolioTheme.TEXT_COLOR}")
+        self.setFont(QFont("Inter", 10))
+        
+class DarkButton(QPushButton):
+    """Dark themed button widget"""
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {PortfolioTheme.BUTTON_COLOR};
+                color: {PortfolioTheme.TEXT_COLOR};
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: {PortfolioTheme.BUTTON_HOVER_COLOR};
+            }}
+            QPushButton:pressed {{
+                background-color: {PortfolioTheme.BUTTON_PRESSED_COLOR};
+            }}
+        """)
+        self.setFont(QFont("Inter", 10))
+
+class DarkCheckbutton(QCheckBox):
+    """Dark themed checkbox widget"""
+    def __init__(self, text="", parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet(f"""
+            QCheckBox {{
+                color: {PortfolioTheme.TEXT_COLOR};
+            }}
+            QCheckBox::indicator {{
+                width: 18px;
+                height: 18px;
+                border: 2px solid {PortfolioTheme.BUTTON_COLOR};
+                border-radius: 3px;
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {PortfolioTheme.BUTTON_COLOR};
+            }}
+        """)
+        self.setFont(QFont("Inter", 10))
+
+# Additional PyQt widgets below
 from PyQt5.QtWidgets import (QPushButton, QFrame, QLabel, QVBoxLayout, 
                              QHBoxLayout, QWidget, QFileDialog)
 from PyQt5.QtCore import Qt, pyqtSignal, QPropertyAnimation, QEasingCurve

@@ -131,21 +131,17 @@ class FFmpegWrapper:
         output_path: str,
         start: float,
         end: float,
-        audio_channels: Optional[str] = None,
-        use_gpu: bool = True,
-        codec_copy: bool = True
+        options = None  # ProcessingOptions
     ) -> None:
         """
-        Extract video clip with optimizations
+        Extract video clip with processing options
         
         Args:
             input_path: Source video file
             output_path: Output file path
             start: Start time in seconds
             end: End time in seconds
-            audio_channels: 'mono', 'stereo', or None
-            use_gpu: Use GPU acceleration if available
-            codec_copy: Use codec copy (faster but less precise)
+            options: ProcessingOptions instance with encoding settings
         """
         duration = end - start
         
@@ -158,33 +154,87 @@ class FFmpegWrapper:
         ]
         
         # Video encoding
-        if codec_copy:
+        if options.codec_copy:
             cmd.extend(['-c:v', 'copy'])
-        elif use_gpu and self.gpu_available['nvenc']:
-            cmd.extend(['-c:v', 'h264_nvenc', '-preset', 'fast'])
-        elif use_gpu and self.gpu_available['qsv']:
-            cmd.extend(['-c:v', 'h264_qsv', '-preset', 'fast'])
-        elif use_gpu and self.gpu_available['videotoolbox']:
-            cmd.extend(['-c:v', 'h264_videotoolbox'])
         else:
-            cmd.extend(['-c:v', 'libx264', '-preset', 'fast', '-crf', '23'])
+            # Select codec based on GPU support and settings
+            if options.use_gpu:
+                if self.gpu_available['nvenc'] and options.video_codec == 'h264':
+                    codec = 'h264_nvenc'
+                elif self.gpu_available['qsv'] and options.video_codec == 'h264':
+                    codec = 'h264_qsv'
+                elif self.gpu_available['videotoolbox'] and options.video_codec == 'h264':
+                    codec = 'h264_videotoolbox'
+                else:
+                    codec = f"lib{options.video_codec}"
+            else:
+                codec = f"lib{options.video_codec}"
+            
+            cmd.extend(['-c:v', codec])
+            
+            # Video quality settings
+            if options.video_preset:
+                cmd.extend(['-preset', options.video_preset])
+            
+            if options.video_crf is not None:
+                cmd.extend(['-crf', str(options.video_crf)])
+            
+            if options.video_bitrate:
+                cmd.extend(['-b:v', options.video_bitrate])
+            
+            if options.video_pixel_format:
+                cmd.extend(['-pix_fmt', options.video_pixel_format])
+        
+            # Resolution settings
+            if options.width and options.height:
+                if options.maintain_aspect_ratio:
+                    cmd.extend([
+                        '-vf',
+                        f'scale={options.width}:{options.height}:force_original_aspect_ratio=decrease'
+                    ])
+                else:
+                    cmd.extend(['-vf', f'scale={options.width}:{options.height}'])
+            
+            # FPS settings
+            if options.fps:
+                cmd.extend(['-r', str(options.fps)])
         
         # Audio encoding
-        if audio_channels == 'mono':
-            cmd.extend(['-ac', '1', '-c:a', 'aac', '-b:a', '128k'])
-        elif audio_channels == 'stereo':
-            cmd.extend(['-ac', '2', '-c:a', 'aac', '-b:a', '192k'])
-        elif codec_copy:
-            cmd.extend(['-c:a', 'copy'])
+        if not options.codec_copy:
+            cmd.extend(['-c:a', options.audio_codec])
+            
+            if options.audio_channels == 'mono':
+                cmd.extend(['-ac', '1'])
+            elif options.audio_channels == 'stereo':
+                cmd.extend(['-ac', '2'])
+            
+            if options.audio_sample_rate:
+                cmd.extend(['-ar', str(options.audio_sample_rate)])
+            
+            if options.audio_bitrate:
+                cmd.extend(['-b:a', options.audio_bitrate])
+            
+            if options.normalize_audio:
+                cmd.extend(['-filter:a', 'loudnorm'])
         else:
-            cmd.extend(['-c:a', 'aac', '-b:a', '192k'])
+            cmd.extend(['-c:a', 'copy'])
+        
+        # Metadata
+        if options.metadata:
+            for key, value in options.metadata.items():
+                cmd.extend(['-metadata', f"{key}={value}"])
         
         # Additional options
         cmd.extend([
             '-avoid_negative_ts', '1',
-            '-max_muxing_queue_size', '1024',
-            output_path
+            '-max_muxing_queue_size', '1024'
         ])
+        
+        # Extra arguments
+        if options.extra_args:
+            cmd.extend(options.extra_args)
+        
+        cmd.append(output_path)
         
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=600)

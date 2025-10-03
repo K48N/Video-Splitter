@@ -14,14 +14,45 @@ from utils.ffmpeg_wrapper import FFmpegWrapper
 @dataclass
 class ProcessingOptions:
     """Options for video processing"""
-    audio_channels: Optional[str] = None  # 'mono', 'stereo', or None
-    use_gpu: bool = True
-    codec_copy: bool = True
-    mp3_quality: int = 2
+    # Basic options
     output_format: str = 'mp4'
     parallel_processing: bool = True
     max_workers: int = 4
-    export_both_formats: bool = True  # NEW: Export both video and audio
+    export_both_formats: bool = True  # Export both video and audio if segment requests one
+    
+    # Performance options
+    use_gpu: bool = True
+    codec_copy: bool = True
+    
+    # Video settings
+    video_codec: str = 'h264'
+    video_bitrate: Optional[str] = None
+    video_preset: str = 'medium'  # ultrafast to veryslow
+    video_crf: int = 23  # 0-51, lower is better quality
+    video_pixel_format: str = 'yuv420p'
+    width: Optional[int] = None  # If None, maintain source
+    height: Optional[int] = None
+    fps: Optional[float] = None
+    maintain_aspect_ratio: bool = True
+    
+    # Audio settings
+    audio_codec: str = 'aac'
+    audio_bitrate: Optional[str] = None
+    audio_sample_rate: int = 44100
+    audio_channels: Optional[str] = None  # mono, stereo, None for source
+    normalize_audio: bool = False
+    mp3_quality: int = 2  # Legacy option for MP3 export
+    
+    # Additional settings
+    metadata: Dict[str, str] = None
+    extra_args: List[str] = None
+    
+    def __post_init__(self):
+        """Initialize optional fields"""
+        if self.metadata is None:
+            self.metadata = {}
+        if self.extra_args is None:
+            self.extra_args = []
 
 
 @dataclass
@@ -227,27 +258,38 @@ class VideoEngine:
                     f"{base_name}.{options.output_format}"
                 )
                 
+                # Extract video with full processing options
                 self.ffmpeg.extract_clip(
                     self.current_video,
                     video_path,
                     segment.start,
                     segment.end,
-                    audio_channels=options.audio_channels,
-                    use_gpu=options.use_gpu,
-                    codec_copy=options.codec_copy
+                    options
                 )
             
             # Export audio if requested OR if export_both_formats is enabled
             if segment.export_audio or options.export_both_formats:
                 audio_path = os.path.join(output_dir, f"{base_name}.mp3")
                 
-                self.ffmpeg.extract_audio(
+                # For audio-only export, create optimized MP3 options
+                audio_options = ProcessingOptions(
+                    output_format="mp3",
+                    codec_copy=False,
+                    video_codec=None,
+                    audio_codec="libmp3lame",
+                    audio_channels=options.audio_channels,
+                    audio_sample_rate=options.audio_sample_rate,
+                    normalize_audio=options.normalize_audio,
+                    mp3_quality=options.mp3_quality,
+                    extra_args=["-q:a", str(options.mp3_quality)]  # Variable bitrate quality
+                )
+                
+                self.ffmpeg.extract_clip(
                     self.current_video,
                     audio_path,
                     segment.start,
                     segment.end,
-                    audio_channels=options.audio_channels,
-                    quality=options.mp3_quality
+                    audio_options
                 )
             
             processing_time = time.time() - start_time
