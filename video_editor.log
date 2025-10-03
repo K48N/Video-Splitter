@@ -1,0 +1,25 @@
+2025-10-02 14:44:12,534 - __main__ - INFO - Application started successfully
+2025-10-02 14:52:08,176 - __main__ - ERROR - Application failed to start: 'VideoEditorApp' object has no attribute '_save_project'
+Traceback (most recent call last):
+  File "c:\Users\baste\Desktop\New folder (2)\main.py", line 40, in main
+    window = VideoEditorApp()
+  File "c:\Users\baste\Desktop\New folder (2)\ui\main_app.py", line 67, in __init__
+    self._setup_menu()
+  File "c:\Users\baste\Desktop\New folder (2)\ui\main_app.py", line 113, in _setup_menu
+    save_action.triggered.connect(self._save_project)
+AttributeError: 'VideoEditorApp' object has no attribute '_save_project'
+2025-10-03 14:39:34,691 - __main__ - ERROR - Application failed to start: 'VideoEditorApp' object has no attribute '_save_project'
+Traceback (most recent call last):
+  File "c:\Users\baste\Desktop\New folder (2)\main.py", line 40, in main
+    window = VideoEditorApp()
+  File "c:\Users\baste\Desktop\New folder (2)\ui\main_app.py", line 67, in __init__
+    self._setup_menu()
+  File "c:\Users\baste\Desktop\New folder (2)\ui\main_app.py", line 113, in _setup_menu
+    save_action.triggered.connect(self._save_project)
+AttributeError: 'VideoEditorApp' object has no attribute '_save_project'
+2025-10-03 14:41:13,773 - __main__ - INFO - Application started successfully
+2025-10-03 14:48:38,357 - __main__ - INFO - Application started successfully
+2025-10-03 15:40:18,749 - __main__ - INFO - Application started successfully
+2025-10-03 15:49:57,817 - __main__ - INFO - Application started successfully
+2025-10-03 15:56:57,071 - __main__ - INFO - Application started successfully
+2025-10-03 16:23:12,296 - __main__ - INFO - Application started successfully

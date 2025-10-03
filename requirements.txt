@@ -1,0 +1,11 @@
+# Video Splitter Pro v3.0 Dependencies
+PyQt5>=5.15.9
+numpy>=1.24.0
+pillow>=10.0.0
+opencv-python>=4.8.0
+librosa>=0.10.0
+scipy>=1.11.0
+matplotlib>=3.7.0
+
+# Optional
+QtAwesome>=1.2.0
